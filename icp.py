@@ -199,7 +199,7 @@ def evaluate(cfg, use_old_results=False):
 
             all_pred_translations[idx] = pred_transform[:3, 3]
             rotation_mat = pred_transform[:3, :3]
-            rot_vec = Rotation.from_dcm(rotation_mat).as_rotvec()
+            rot_vec = (Rotation.from_matrix(np.array(rotation_mat))).as_rotvec()
             all_pred_angles[idx] = rot_vec[2]
             total_time += time_elapsed
 

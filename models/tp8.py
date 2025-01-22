@@ -11,15 +11,15 @@ from config import configGlobal as cfg
 
 
 def placeholder_inputs(batch_size, num_point):
-    pcs1 = tf.placeholder(tf.float32, shape=(batch_size, num_point, cfg.data.num_channels))
-    pcs2 = tf.placeholder(tf.float32, shape=(batch_size, num_point, cfg.data.num_channels))
-    translations = tf.placeholder(tf.float32, shape=(batch_size, 3))
-    rel_angles = tf.placeholder(tf.float32, shape=(batch_size, 1))
+    pcs1 = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, num_point, cfg.data.num_channels))
+    pcs2 = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, num_point, cfg.data.num_channels))
+    translations = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, 3))
+    rel_angles = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, 1))
 
-    pc1_centers = tf.placeholder(tf.float32, shape=(batch_size, 3))
-    pc2_centers = tf.placeholder(tf.float32, shape=(batch_size, 3))
-    pc1_angles = tf.placeholder(tf.float32, shape=(batch_size, 1))
-    pc2_angles = tf.placeholder(tf.float32, shape=(batch_size, 1))
+    pc1_centers = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, 3))
+    pc2_centers = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, 3))
+    pc1_angles = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, 1))
+    pc2_angles = tf.compat.v1.placeholder(tf.float32, shape=(batch_size, 1))
     return pcs1, pcs2, translations, rel_angles, pc1_centers, pc2_centers, pc1_angles, pc2_angles
 
 
@@ -31,7 +31,7 @@ def _get_dgcnn(pcs, layer_sizes, scope_name, is_training, bn_decay):
     assert len(layer_sizes) > 0
     num_point = pcs.shape[1]
     k = 20
-    with tf.variable_scope(scope_name):
+    with  tf.compat.v1.variable_scope(scope_name):
         adj_matrix = tf_util_dgcnn.pairwise_distance(pcs)
         nn_idx = tf_util_dgcnn.knn(adj_matrix, k=k)
         edge_feature = tf_util_dgcnn.get_edge_feature(pcs, nn_idx=nn_idx, k=k)
@@ -50,7 +50,7 @@ def _get_pointnet(pcs_extended, layer_sizes, scope_name, is_training, bn_decay):
     assert len(layer_sizes) > 0
     num_point = pcs_extended.shape[1]
     num_channel = pcs_extended.shape[2]
-    with tf.variable_scope(scope_name):
+    with  tf.compat.v1.variable_scope(scope_name):
         # Point functions (MLP implemented as conv2d)
         net = tf_util.conv2d(pcs_extended, layer_sizes[0], [1, num_channel], padding='VALID', stride=[1, 1], bn=True, is_training=is_training, scope='conv1', bn_decay=bn_decay)
         for idx, layer_size in enumerate(layer_sizes[1:]):
@@ -74,7 +74,7 @@ def get_backbone_with_options(net, options, scope_name, is_training, bn_decay, b
 
 def get_mlp(net, layer_sizes, scope_name, is_training, bn_decay, dropout=None):
     assert len(layer_sizes) > 0
-    with tf.variable_scope(scope_name):
+    with  tf.compat.v1.variable_scope(scope_name):
         for idx, layer_size in enumerate(layer_sizes[:-1]):
             net = tf_util.fully_connected(net, layer_size, bn=True, is_training=is_training, scope=f'fc{idx+1}', bn_decay=bn_decay)
         if dropout is not None:
@@ -88,7 +88,7 @@ def get_mlp_with_options(net, options, scope_name, is_training, bn_decay):
 
 def get_transformer_net(pcs, embedding_layer_sizes, mlp_layer_sizes, scope_name, is_training, bn_decay, backbone, dropout=None):
     batch_size = pcs.shape[0]
-    with tf.variable_scope(scope_name):
+    with  tf.compat.v1.variable_scope(scope_name):
         net = get_backbone(pcs, embedding_layer_sizes, 'embedding', is_training, bn_decay, backbone)
         net = tf.reshape(net, [batch_size, -1])
         return get_mlp(net, mlp_layer_sizes, 'mlp', is_training, bn_decay, dropout)
@@ -99,7 +99,7 @@ def get_transformer_net_from_options(pcs, options, scope_name, is_training, bn_d
 
 
 def get_embedding_net(pcs, is_training, end_points, bn_decay=None):
-    num_point = pcs.get_shape()[1].value
+    num_point = pcs.get_shape()[1]
 
     center_mean = tf.reduce_mean(pcs, axis=1)
     pcs_extended = tf.expand_dims(pcs, -1)
@@ -134,12 +134,12 @@ def get_embedding_net(pcs, is_training, end_points, bn_decay=None):
 
 def get_model(pcs1, pcs2, is_training, bn_decay=None):
     """ Classification PointNet, input is BxNx3, output Bx40 """
-    batch_size = pcs1.get_shape()[0].value
+    batch_size = pcs1.get_shape()[0]
     end_points = {}
 
-    with tf.variable_scope("siamese"):
+    with  tf.compat.v1.variable_scope("siamese"):
         embedding_output1, center_mean1, s1_pred_center1, s2_pred_center1, s2_pred_angle_logits1 = get_embedding_net(pcs1, is_training, end_points, bn_decay)
-    with tf.variable_scope("siamese", reuse=tf.AUTO_REUSE):
+    with  tf.compat.v1.variable_scope("siamese", reuse=tf.compat.v1.AUTO_REUSE):
         embedding_output2, center_mean2, s1_pred_center2, s2_pred_center2, s2_pred_angle_logits2 = get_embedding_net(pcs2, is_training, end_points, bn_decay)
     embedding_output_combined = tf.concat([embedding_output1, embedding_output2], axis=3)
 
@@ -160,7 +160,7 @@ def get_model(pcs1, pcs2, is_training, bn_decay=None):
 
 def tf_get_angle_difference(a1, a2):
     pi = tf.constant(np.pi)
-    r = tf.mod(a2 - a1, 2.0 * pi)
+    r = tf.compat.v1.mod(a2 - a1, 2.0 * pi)
     return tf.where(r > pi, r - pi * 2.0, r)
 
 
@@ -191,11 +191,11 @@ def tf_angle2class(angle):
             class*(2pi/N) + residual_angle = angle
     '''
     twopi = tf.constant(2.0 * np.pi)
-    angle = tf.mod(angle, twopi)
-    angle_per_class = twopi / tf.to_float(cfg.model.angles.num_bins)
-    shifted_angle = tf.mod(angle + angle_per_class / 2.0, twopi)
-    class_id = tf.to_int32(shifted_angle / angle_per_class)
-    residual_angle = shifted_angle - (tf.to_float(class_id) * angle_per_class + angle_per_class / 2.0)
+    angle = tf.compat.v1.mod(angle, twopi)
+    angle_per_class = twopi / tf.cast(cfg.model.angles.num_bins, tf.float32)
+    shifted_angle = tf.compat.v1.mod(angle + angle_per_class / 2.0, twopi)
+    class_id = tf.cast(shifted_angle / angle_per_class, tf.int32)
+    residual_angle = shifted_angle - (tf.cast(class_id, tf.float32) * angle_per_class + angle_per_class / 2.0)
     return class_id[:, 0], residual_angle
 
 
@@ -204,11 +204,11 @@ def tf_class2angle(pred_cls, residual, to_label_format=True):
     If to_label_format, adjust angle to the range as in labels.
     '''
     tf_pi = tf.constant(np.pi, dtype=tf.float32)
-    angle_per_class = 2.0 * tf_pi / tf.to_float(cfg.model.angles.num_bins)
-    angle_center = tf.to_float(pred_cls) * angle_per_class
+    angle_per_class = 2.0 * tf_pi / tf.cast(cfg.model.angles.num_bins, tf.float32)
+    angle_center = tf.cast(pred_cls, tf.float32) * angle_per_class
     angle = angle_center + residual
     if to_label_format:
-        angle = tf.mod(angle + tf_pi, 2.0 * tf_pi) - tf_pi  # Transfer to range -pi,pi
+        angle = tf.compat.v1.mod(angle + tf_pi, 2.0 * tf_pi) - tf_pi  # Transfer to range -pi,pi
     return angle
 
 
@@ -218,11 +218,11 @@ def tf_class2angle2(pred_cls, residuals, to_label_format=True):
     '''
     residual = tf.gather_nd(residuals, tf.transpose(tf.stack([tf.range(pred_cls.shape[0], dtype=tf.int64), pred_cls])))
     tf_pi = tf.constant(np.pi, dtype=tf.float32)
-    angle_per_class = 2.0 * tf_pi / tf.to_float(cfg.model.angles.num_bins)
-    angle_center = tf.to_float(pred_cls) * angle_per_class
+    angle_per_class = 2.0 * tf_pi / tf.cast(cfg.model.angles.num_bins, tf.float32)
+    angle_center = tf.cast(pred_cls, tf.float32) * angle_per_class
     angle = angle_center + residual
     if to_label_format:
-        angle = tf.mod(angle + tf_pi, 2.0 * tf_pi) - tf_pi  # Transfer to range -pi,pi
+        angle = tf.compat.v1.mod(angle + tf_pi, 2.0 * tf_pi) - tf_pi  # Transfer to range -pi,pi
     return angle
 
 
@@ -256,7 +256,7 @@ def tf_get_target_angle_distribution(target_angle):
     angle_per_bin = 360. / nbins
     sigma_in_degree = cfg.training.loss.options.soft_angle_classes_sigma_in_degree
     dist = tf.distributions.Normal(loc=[target_angle - 360., target_angle, target_angle + 360.], scale=sigma_in_degree)  # Create three distributions (non-overlapping, as sigma_in_degree should be small), which are later stitched together so that a target value around 360. degree also raises the probability for angles around 0.
-    angles = tf.multiply(tf.cast(tf.range(nbins + 1), tf.float32), tf.to_float(angle_per_bin))
+    angles = tf.multiply(tf.cast(tf.range(nbins + 1), tf.float32), tf.cast(angle_per_bin, tf.float32))
     dist_values = dist.cdf(tf.tile(tf.expand_dims(angles, 1), [1, 3]))  # Here the probabilities at the angle bins are evaluated, with cdf, so that in the end probabilities add up to 1.0
     dist_values = tf.manip.roll(dist_values, -1, axis=0) - dist_values  # Subtract each value from the one on its left -> cumulative probabilities to probabilities
     dist_values = tf.reduce_sum(dist_values, axis=1)  # Combine the three shifted probability distributions
@@ -276,7 +276,7 @@ def _tf_get_angle_loss(logits, target_angles):
         angle_class_loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=angle_class_logits, labels=target_angle_classes))
     angle_class_onehot = tf.one_hot(target_angle_classes, depth=cfg.model.angles.num_bins, on_value=1, off_value=0, axis=-1)  # BxNUM_HEADING_BIN
     angle_residual_normalized_label = target_angle_residuals / (np.pi / cfg.model.angles.num_bins)
-    angle_residual_normalized_loss = huber_loss(tf.reduce_sum(angle_residuals_normalized * tf.to_float(angle_class_onehot), axis=1) - angle_residual_normalized_label, delta=1.0, name='angle_residual_normalized_loss')
+    angle_residual_normalized_loss = huber_loss(tf.reduce_sum(angle_residuals_normalized * tf.cast(angle_class_onehot, tf.float32), axis=1) - angle_residual_normalized_label, delta=1.0, name='angle_residual_normalized_loss')
 
     return tf.stack([angle_class_loss + 20.0 * angle_residual_normalized_loss, angle_class_loss, angle_residual_normalized_loss])
 
@@ -302,7 +302,7 @@ def tf_get_angles(logits):
 
 
 def _get_loss_separate(pcs1, pcs2, translations, rel_angles, pc1_centers, pc2_centers, pc1_angles, pc2_angles, end_points):
-    batch_size = translations.get_shape()[0].value
+    batch_size = translations.get_shape()[0]
 
     angle_factor = cfg.model.options.angle_factor
     early_stage_factor = cfg.model.options.early_stage_factor
@@ -333,24 +333,24 @@ def _get_loss_separate(pcs1, pcs2, translations, rel_angles, pc1_centers, pc2_ce
     loss = loss_translation + angle_factor * loss_angle
     per_transform_loss = loss / batch_size
 
-    tf.summary.scalar('losses/translation', loss_translation)
-    tf.summary.scalar('losses/angle', loss_angle)
+    tf.compat.v1.summary.scalar('losses/translation', loss_translation)
+    tf.compat.v1.summary.scalar('losses/angle', loss_angle)
 
-    tf.summary.scalar('losses_stages/stage1_pc1_transl_loss', pc1_stage1_transl_loss)
-    tf.summary.scalar('losses_stages/stage1_pc2_transl_loss', pc2_stage1_transl_loss)
-    tf.summary.scalar('losses_stages/stage2_pc1_transl_loss', pc1_stage2_transl_loss)
-    tf.summary.scalar('losses_stages/stage2_pc2_transl_loss', pc2_stage2_transl_loss)
-    tf.summary.scalar('losses_stages/stage3_transl_loss', stage3_translation_loss)
+    tf.compat.v1.summary.scalar('losses_stages/stage1_pc1_transl_loss', pc1_stage1_transl_loss)
+    tf.compat.v1.summary.scalar('losses_stages/stage1_pc2_transl_loss', pc2_stage1_transl_loss)
+    tf.compat.v1.summary.scalar('losses_stages/stage2_pc1_transl_loss', pc1_stage2_transl_loss)
+    tf.compat.v1.summary.scalar('losses_stages/stage2_pc2_transl_loss', pc2_stage2_transl_loss)
+    tf.compat.v1.summary.scalar('losses_stages/stage3_transl_loss', stage3_translation_loss)
 
-    tf.summary.scalar('losses_stages/stage2_pc1_angle_loss', pc1_stage2_angle_loss)
-    tf.summary.scalar('losses_stages/stage2_pc1_angle_class_loss', pc1_stage2_angle_class_loss)
-    tf.summary.scalar('losses_stages/stage2_pc1_angle_residual_loss', pc1_stage2_angle_residual_loss)
-    tf.summary.scalar('losses_stages/stage2_pc2_angle_loss', pc2_stage2_angle_loss)
-    tf.summary.scalar('losses_stages/stage2_pc2_angle_class_loss', pc2_stage2_angle_class_loss)
-    tf.summary.scalar('losses_stages/stage2_pc2_angle_residual_loss', pc2_stage2_angle_residual_loss)
-    tf.summary.scalar('losses_stages/stage3_angle_loss', stage3_angle_loss)
-    tf.summary.scalar('losses_stages/stage3_angle_class_loss', stage3_angle_class_loss)
-    tf.summary.scalar('losses_stages/stage3_angle_residual_loss', stage3_angle_residual_loss)
+    tf.compat.v1.summary.scalar('losses_stages/stage2_pc1_angle_loss', pc1_stage2_angle_loss)
+    tf.compat.v1.summary.scalar('losses_stages/stage2_pc1_angle_class_loss', pc1_stage2_angle_class_loss)
+    tf.compat.v1.summary.scalar('losses_stages/stage2_pc1_angle_residual_loss', pc1_stage2_angle_residual_loss)
+    tf.compat.v1.summary.scalar('losses_stages/stage2_pc2_angle_loss', pc2_stage2_angle_loss)
+    tf.compat.v1.summary.scalar('losses_stages/stage2_pc2_angle_class_loss', pc2_stage2_angle_class_loss)
+    tf.compat.v1.summary.scalar('losses_stages/stage2_pc2_angle_residual_loss', pc2_stage2_angle_residual_loss)
+    tf.compat.v1.summary.scalar('losses_stages/stage3_angle_loss', stage3_angle_loss)
+    tf.compat.v1.summary.scalar('losses_stages/stage3_angle_class_loss', stage3_angle_class_loss)
+    tf.compat.v1.summary.scalar('losses_stages/stage3_angle_residual_loss', stage3_angle_residual_loss)
     return per_transform_loss
 
 
@@ -372,7 +372,7 @@ def tf_transform_pcs(pcs, translations=None, angles=None, rotation_centers=None)
 
 
 def _get_loss_p2p(pcs1, pcs2, translations, rel_angles, pc1_centers, pc2_centers, pc1_angles, pc2_angles, end_points):
-    batch_size = translations.get_shape()[0].value
+    batch_size = translations.get_shape()[0]
     pred_translations = end_points['pred_translations']
     pred_s2_pc1centers = end_points['pred_s2_pc1centers']
     pred_angles_pc1 = tf_classLogits2angle(end_points['pred_pc1angle_logits'])

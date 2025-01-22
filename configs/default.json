@@ -1,6 +1,6 @@
 {
     "data": {
-        "basepath": "/home/gross/data/SynthCars",
+        "basepath": "/home/ivrolan/object-detection/AlignNet-3D/data'",
         "num_channels": 3
     },
     "gpu_index": 0,
@@ -22,7 +22,7 @@
         }
     },
     "logging": {
-        "basedir": "/home/gross/models/alignnet"
+        "basedir": "/home/ivrolan/object-detection/AlignNet-3D/models/models_alignnet/alignnet"
     },
     "evaluation": {
         "save_every_epoch": true

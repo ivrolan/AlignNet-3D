@@ -1,6 +1,6 @@
 {
     "data": {
-        "basepath": "/home/gross/data/KITTITrackletsCarsPersons"
+        "basepath": "/home/ivrolan/object-detection/AlignNet-3D/data/KITTITrackletsCarsPersons"
     },
     "model": {
         "model": "tp8",

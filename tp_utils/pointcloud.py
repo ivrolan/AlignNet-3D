@@ -285,7 +285,7 @@ def get_mat_angle(translation=None, rotation=None, rotation_center=np.array([0.,
     if translation is not None:
         mat3[:3, 3] += translation
     if rotation is not None:
-        mat2[:3, :3] = Rotation.from_rotvec(np.array([0, 0, 1.]) * rotation).as_dcm()
+        mat2[:3, :3] = Rotation.from_rotvec(np.array([0, 0, 1.]) * rotation).as_matrix()
     return np.matmul(np.matmul(mat3, mat2), mat1)
 
 

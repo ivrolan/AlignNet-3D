@@ -142,7 +142,7 @@ def get_learning_rate(batch):
         else:
             assert False
 
-        learning_rate = tf.train.exponential_decay(
+        learning_rate = tf.compat.v1.train.exponential_decay(
             cfg.training.learning_rate,  # Base learning rate.
             batch * cfg.training.batch_size,  # Current index into the dataset.
             lr_decay_step,
@@ -169,7 +169,7 @@ def get_bn_decay(batch):
     else:
         assert False
 
-    bn_momentum = tf.train.exponential_decay(cfg.training.bn_extension.init, batch * cfg.training.batch_size, bn_decay_step, cfg.training.bn_extension.rate, staircase=True)
+    bn_momentum = tf.compat.v1.train.exponential_decay(cfg.training.bn_extension.init, batch * cfg.training.batch_size, bn_decay_step, cfg.training.bn_extension.rate, staircase=True)
     bn_decay = tf.minimum(cfg.training.bn_extension.clip, 1 - bn_momentum)
     return bn_decay
 
@@ -188,53 +188,53 @@ def train(eval_only=False, eval_epoch=None, eval_only_model_to_load=None, do_tim
     with tf.Graph().as_default():
         with tf.device('/gpu:' + str(cfg.gpu_index)):
             pcs1, pcs2, translations, rel_angles, pc1centers, pc2centers, pc1angles, pc2angles = MODEL.placeholder_inputs(cfg.training.batch_size, cfg.model.num_points)
-            is_training_pl = tf.placeholder(tf.bool, shape=())
+            is_training_pl = tf.compat.v1.placeholder(tf.bool, shape=())
 
             # Note the global_step=batch parameter to minimize.
             # That tells the optimizer to helpfully increment the 'batch' parameter for you every time it trains.
             batch = tf.Variable(0)
             bn_decay = get_bn_decay(batch)
-            tf.summary.scalar('hyperparameters/bn_decay', bn_decay)
+            tf.compat.v1.summary.scalar('hyperparameters/bn_decay', bn_decay)
 
             # Get model and loss
             end_points = MODEL.get_model(pcs1, pcs2, is_training_pl, bn_decay=bn_decay)
             loss = MODEL.get_loss(pcs1, pcs2, translations, rel_angles, pc1centers, pc2centers, pc1angles, pc2angles, end_points)
-            tf.summary.scalar('losses/loss', loss)
+            tf.compat.v1.summary.scalar('losses/loss', loss)
 
             #  correct = tf.equal(tf.argmax(pred, 1), tf.to_int64(labels_pl))
             #  accuracy = tf.reduce_sum(tf.cast(correct, tf.float32)) / float(cfg.training.batch_size)
-            #  tf.summary.scalar('accuracy', accuracy)
+            #  tf.compat.v1.summary.scalar('accuracy', accuracy)
 
             # Get training operator
             learning_rate = get_learning_rate(batch)
-            tf.summary.scalar('hyperparameters/learning_rate', learning_rate)
+            tf.compat.v1.summary.scalar('hyperparameters/learning_rate', learning_rate)
             if cfg.training.optimizer.optimizer == 'momentum':
-                optimizer = tf.train.MomentumOptimizer(learning_rate, momentum=cfg.training.optimizer.momentum)
+                optimizer = tf.compat.v1.train.MomentumOptimizer(learning_rate, momentum=cfg.training.optimizer.momentum)
             elif cfg.training.optimizer.optimizer == 'adam':
-                optimizer = tf.train.AdamOptimizer(learning_rate)
+                optimizer = tf.compat.v1.train.AdamOptimizer(learning_rate)
             else:
                 assert False, "Invalid optimizer"
             train_op = optimizer.minimize(loss, global_step=batch)
 
             # Add ops to save and restore all the variables.
-            saver = tf.train.Saver(max_to_keep=1000)
+            saver = tf.compat.v1.train.Saver(max_to_keep=1000)
 
         # Create a session
-        config = tf.ConfigProto()
+        config = tf.compat.v1.ConfigProto()
         config.gpu_options.allow_growth = True
         config.allow_soft_placement = True
         config.log_device_placement = False
-        sess = tf.Session(config=config)
+        sess = tf.compat.v1.Session(config=config)
 
         # Add summary writers
         #  merged = tf.merge_all_summaries()
-        merged = tf.summary.merge_all()
-        train_writer = tf.summary.FileWriter(os.path.join(cfg.logging.logdir, 'train'), sess.graph)
-        val_writer = tf.summary.FileWriter(os.path.join(cfg.logging.logdir, 'val'))
-        val_writer_180 = tf.summary.FileWriter(os.path.join(cfg.logging.logdir, 'val_180'))
+        merged = tf.compat.v1.summary.merge_all()
+        train_writer = tf.compat.v1.summary.FileWriter(os.path.join(cfg.logging.logdir, 'train'), sess.graph)
+        val_writer = tf.compat.v1.summary.FileWriter(os.path.join(cfg.logging.logdir, 'val'))
+        val_writer_180 = tf.compat.v1.summary.FileWriter(os.path.join(cfg.logging.logdir, 'val_180'))
 
         # Init variables
-        init = tf.global_variables_initializer()
+        init = tf.compat.v1.global_variables_initializer()
         # To fix the bug introduced in TF 0.12.1 as in
         # http://stackoverflow.com/questions/41543774/invalidargumenterror-for-tensor-bool-tensorflow-0-12-1
         # sess.run(init)
@@ -277,7 +277,7 @@ def train(eval_only=False, eval_epoch=None, eval_only_model_to_load=None, do_tim
                 assert os.path.isfile(cfg.training.pretraining.model + '.index')
                 variables = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)
                 variables_to_load = [var for var in variables if var not in [batch]]
-                saverPretraining = tf.train.Saver(variables_to_load)
+                saverPretraining = tf.compat.v1.train.Saver(variables_to_load)
                 saverPretraining.restore(sess, cfg.training.pretraining.model)
                 #  print(variables)
                 #  print(len(variables), len(variables_to_load))
@@ -515,20 +515,20 @@ def eval_one_epoch(sess, ops, val_writer, val_writer_180, epoch, eval_only, do_t
             logger.info(f'Mean translation distance: {eval_dict.mean_dist_translation}, Mean angle distance: {eval_dict.mean_dist_angle}, Levels: {corr_levels_str}, Translation levels: {corr_levels_translation_str}, Angle levels: {corr_levels_angles_str}, Fitness: {eval_dict.reg_eval.fitness*100.0:.2f}%, Inlier RMSE: {eval_dict.reg_eval.inlier_rmse*100.0:.2f}%, Mean ex. time: {mean_execution_time:.5f}')
 
             if not eval_only:
-                _val_writer.add_summary(summary=tf.Summary(value=[tf.summary.Summary.Value(tag='losses/loss', simple_value=mean_per_transform_loss)]), global_step=global_step)
-                _val_writer.add_summary(summary=tf.Summary(value=[tf.summary.Summary.Value(tag='accuracy/t_a_mean_dist', simple_value=eval_dict.mean_dist_translation)]), global_step=global_step)
-                _val_writer.add_summary(summary=tf.Summary(value=[tf.summary.Summary.Value(tag='accuracy/t_b_1cm', simple_value=eval_dict.corr_levels_translation[0])]), global_step=global_step)
-                _val_writer.add_summary(summary=tf.Summary(value=[tf.summary.Summary.Value(tag='accuracy/t_c_10cm', simple_value=eval_dict.corr_levels_translation[1])]), global_step=global_step)
-                _val_writer.add_summary(summary=tf.Summary(value=[tf.summary.Summary.Value(tag='accuracy/t_d_1m', simple_value=eval_dict.corr_levels_translation[2])]), global_step=global_step)
-                _val_writer.add_summary(summary=tf.Summary(value=[tf.summary.Summary.Value(tag='accuracy/a_a_mean_dist', simple_value=eval_dict.mean_dist_angle)]), global_step=global_step)
-                _val_writer.add_summary(summary=tf.Summary(value=[tf.summary.Summary.Value(tag='accuracy/a_b_1d', simple_value=eval_dict.corr_levels_angles[0])]), global_step=global_step)
-                _val_writer.add_summary(summary=tf.Summary(value=[tf.summary.Summary.Value(tag='accuracy/a_c_5d', simple_value=eval_dict.corr_levels_angles[1])]), global_step=global_step)
-                _val_writer.add_summary(summary=tf.Summary(value=[tf.summary.Summary.Value(tag='accuracy/a_d_10d', simple_value=eval_dict.corr_levels_angles[2])]), global_step=global_step)
-                _val_writer.add_summary(summary=tf.Summary(value=[tf.summary.Summary.Value(tag='accuracy/o_b_1cm', simple_value=eval_dict.corr_levels[0])]), global_step=global_step)
-                _val_writer.add_summary(summary=tf.Summary(value=[tf.summary.Summary.Value(tag='accuracy/o_c_10cm', simple_value=eval_dict.corr_levels[1])]), global_step=global_step)
-                _val_writer.add_summary(summary=tf.Summary(value=[tf.summary.Summary.Value(tag='accuracy/o_d_1m', simple_value=eval_dict.corr_levels[2])]), global_step=global_step)
-                _val_writer.add_summary(summary=tf.Summary(value=[tf.summary.Summary.Value(tag='accuracy/fitness', simple_value=eval_dict.reg_eval.fitness)]), global_step=global_step)
-                _val_writer.add_summary(summary=tf.Summary(value=[tf.summary.Summary.Value(tag='accuracy/inlier_rmse', simple_value=eval_dict.reg_eval.inlier_rmse)]), global_step=global_step)
+                _val_writer.add_summary(summary=tf.compat.v1.summary(value=[tf.compat.v1.summary.Summary.Value(tag='losses/loss', simple_value=mean_per_transform_loss)]), global_step=global_step)
+                _val_writer.add_summary(summary=tf.compat.v1.summary(value=[tf.compat.v1.summary.Summary.Value(tag='accuracy/t_a_mean_dist', simple_value=eval_dict.mean_dist_translation)]), global_step=global_step)
+                _val_writer.add_summary(summary=tf.compat.v1.summary(value=[tf.compat.v1.summary.Summary.Value(tag='accuracy/t_b_1cm', simple_value=eval_dict.corr_levels_translation[0])]), global_step=global_step)
+                _val_writer.add_summary(summary=tf.compat.v1.summary(value=[tf.compat.v1.summary.Summary.Value(tag='accuracy/t_c_10cm', simple_value=eval_dict.corr_levels_translation[1])]), global_step=global_step)
+                _val_writer.add_summary(summary=tf.compat.v1.summary(value=[tf.compat.v1.summary.Summary.Value(tag='accuracy/t_d_1m', simple_value=eval_dict.corr_levels_translation[2])]), global_step=global_step)
+                _val_writer.add_summary(summary=tf.compat.v1.summary(value=[tf.compat.v1.summary.Summary.Value(tag='accuracy/a_a_mean_dist', simple_value=eval_dict.mean_dist_angle)]), global_step=global_step)
+                _val_writer.add_summary(summary=tf.compat.v1.summary(value=[tf.compat.v1.summary.Summary.Value(tag='accuracy/a_b_1d', simple_value=eval_dict.corr_levels_angles[0])]), global_step=global_step)
+                _val_writer.add_summary(summary=tf.compat.v1.summary(value=[tf.compat.v1.summary.Summary.Value(tag='accuracy/a_c_5d', simple_value=eval_dict.corr_levels_angles[1])]), global_step=global_step)
+                _val_writer.add_summary(summary=tf.compat.v1.summary(value=[tf.compat.v1.summary.Summary.Value(tag='accuracy/a_d_10d', simple_value=eval_dict.corr_levels_angles[2])]), global_step=global_step)
+                _val_writer.add_summary(summary=tf.compat.v1.summary(value=[tf.compat.v1.summary.Summary.Value(tag='accuracy/o_b_1cm', simple_value=eval_dict.corr_levels[0])]), global_step=global_step)
+                _val_writer.add_summary(summary=tf.compat.v1.summary(value=[tf.compat.v1.summary.Summary.Value(tag='accuracy/o_c_10cm', simple_value=eval_dict.corr_levels[1])]), global_step=global_step)
+                _val_writer.add_summary(summary=tf.compat.v1.summary(value=[tf.compat.v1.summary.Summary.Value(tag='accuracy/o_d_1m', simple_value=eval_dict.corr_levels[2])]), global_step=global_step)
+                _val_writer.add_summary(summary=tf.compat.v1.summary(value=[tf.compat.v1.summary.Summary.Value(tag='accuracy/fitness', simple_value=eval_dict.reg_eval.fitness)]), global_step=global_step)
+                _val_writer.add_summary(summary=tf.compat.v1.summary(value=[tf.compat.v1.summary.Summary.Value(tag='accuracy/inlier_rmse', simple_value=eval_dict.reg_eval.inlier_rmse)]), global_step=global_step)
                 _val_writer.flush()
 
     np.save(f'{eval_dir}/pred_translations.npy', all_pred_translations)

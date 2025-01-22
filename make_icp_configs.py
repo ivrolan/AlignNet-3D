@@ -1,7 +1,7 @@
 import json
 import os
 
-dataset_dir = '/home/gross/data'
+dataset_dir = '/home/ivrolan/object-detection/AlignNet-3D/data' # '/home/gross/data'
 
 for dataset in ['SynthCars', 'SynthCarsPersons', 'Synth20', 'Synth20others', 'KITTITrackletsCars', 'KITTITrackletsCarsPersons', 'KITTITrackletsCarsHard', 'KITTITrackletsCarsPersonsHard']:
     for filename, icp_variant, refine in [('o3_p2p', 'p2point', False), ('o3_gicp', 'o3_gicp', False), ('o3_gicp_p2p', 'o3_gicp', True), ('o3_gicp_fast', 'o3_gicp_fast', False), ('o3_gicp_fast_p2p', 'o3_gicp_fast', True)]:

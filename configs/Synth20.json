@@ -1,6 +1,6 @@
 {
     "data": {
-        "basepath": "/home/gross/data/Synth20"
+        "basepath": "/home/ivrolan/object-detection/AlignNet-3D/data/Synth20"
     },
     "model": {
         "model": "tp8",
@@ -42,6 +42,9 @@
         },
         "loss": {
             "loss": "separate"
+        },
+        "pretraining": {
+            "model": "/home/ivrolan/object-detection/AlignNet-3D/models/models_alignnet/alignnet/Synth20/model-61"
         }
     }
 }
